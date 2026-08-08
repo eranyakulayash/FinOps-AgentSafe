@@ -1,0 +1,33 @@
+# Build artifacts
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.rar
+
+# Logs
+*.log
+logs/
+
+# Secrets and environment files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+*.p12
+*.jks
+
+# IDE and OS metadata
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp

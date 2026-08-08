@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: simulator-core-test
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+finops:
+  security:
+    supervisor-token: "SUP-SECRET-AUTH-TOKEN-9988"
+  failure-injection:
+    # Failure injection is ENABLED in test profile so that
+    # profile-safety tests can verify both the default-off and test-on paths.
+    enabled: true
+  approval:
+    ttl-hours: 24

@@ -1,0 +1,11 @@
+# Benchmark profile configuration
+# Activates failure injection and deterministic behavior for benchmark runs.
+# Activate with: --spring.profiles.active=benchmark
+
+finops:
+  failure-injection:
+    # Failure injection is ENABLED in benchmark mode.
+    # X-Injected-Failure header will activate configured fault types.
+    enabled: true
+  approval:
+    ttl-hours: 24

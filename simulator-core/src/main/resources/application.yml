@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: simulator-core
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:finops_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: ${SPRING_JPA_DIALECT:org.hibernate.dialect.H2Dialect}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+finops:
+  security:
+    supervisor-token: "SUP-SECRET-AUTH-TOKEN-9988"
+  failure-injection:
+    # SAFETY: Failure injection is DISABLED by default.
+    # Set to true only in benchmark or test profiles.
+    enabled: false
+  approval:
+    ttl-hours: 24
