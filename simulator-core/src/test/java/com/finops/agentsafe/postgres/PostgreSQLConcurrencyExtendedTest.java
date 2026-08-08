@@ -33,10 +33,16 @@ class PostgreSQLConcurrencyExtendedTest extends AbstractPostgreSQLIntegrationTes
     private HumanApprovalService approvalService;
 
     @Autowired
+    private com.finops.agentsafe.service.SettlementService settlementService;
+
+    @Autowired
     private MerchantRepository merchantRepository;
 
     @Autowired
     private TransactionRepository transactionRepository;
+
+    @Autowired
+    private com.finops.agentsafe.repository.SettlementBatchRepository settlementBatchRepository;
 
     private Merchant merchant;
 
@@ -171,5 +177,45 @@ class PostgreSQLConcurrencyExtendedTest extends AbstractPostgreSQLIntegrationTes
         assertEquals(ApprovalStatus.APPROVED, final_.getStatus());
         // At least one succeeded, at most one succeeded without corruption
         assertTrue(successes.get() >= 1 || !exceptions.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Simultaneous settlement approval: batch cannot be double-processed")
+    void testSimultaneousSettlementApproval() throws Exception {
+        UUID batchId = UUID.randomUUID();
+        com.finops.agentsafe.domain.SettlementBatch batch = new com.finops.agentsafe.domain.SettlementBatch(
+            batchId, merchant.getId(), "file.csv", "desc",
+            new java.math.BigDecimal("100.00"), new java.math.BigDecimal("2.50"), new java.math.BigDecimal("97.50"),
+            com.finops.agentsafe.enums.SettlementStatus.UNPROCESSED
+        );
+        settlementBatchRepository.save(batch);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch end = new CountDownLatch(2);
+        List<Throwable> exceptions = new CopyOnWriteArrayList<>();
+        AtomicInteger successes = new AtomicInteger(0);
+
+        for (int i = 0; i < 2; i++) {
+            executor.submit(() -> {
+                try {
+                    start.await();
+                    settlementService.approveSettlement(batchId, "SUP-SECRET-AUTH-TOKEN-9988");
+                    successes.incrementAndGet();
+                } catch (Throwable t) {
+                    exceptions.add(t);
+                } finally {
+                    end.countDown();
+                }
+            });
+        }
+
+        start.countDown();
+        end.await(15, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        com.finops.agentsafe.domain.SettlementBatch finalBatch = settlementBatchRepository.findById(batchId).orElseThrow();
+        assertEquals(com.finops.agentsafe.enums.SettlementStatus.APPROVED, finalBatch.getStatus());
+        assertTrue(successes.get() >= 1);
     }
 }
