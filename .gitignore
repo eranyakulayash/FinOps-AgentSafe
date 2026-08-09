@@ -31,3 +31,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+scratch/
+results/
+**/results/
+

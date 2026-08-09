@@ -63,8 +63,14 @@ class EndToEndWorkflowIntegrationTest extends AbstractPostgreSQLIntegrationTest 
     void setUp() {
         runId = UUID.randomUUID();
         scenarioId = "SCENARIO-E2E-ESCALATION-001";
+        com.finops.agentsafe.failure.FailureInjectionContext.setRunAndScenario(runId, scenarioId);
         merchant = new Merchant(UUID.randomUUID(), "End-To-End Enterprise Inc", new BigDecimal("2.00"), "ACTIVE");
         merchantRepository.save(merchant);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        com.finops.agentsafe.failure.FailureInjectionContext.clear();
     }
 
     @Test

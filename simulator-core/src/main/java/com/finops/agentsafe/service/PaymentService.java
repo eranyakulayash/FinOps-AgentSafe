@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +36,7 @@ public class PaymentService {
     private final SimulatorClock clock;
     private final IdentifierGenerator identifierGenerator;
     private final HumanApprovalRequestRepository approvalRepository;
+    private final ApprovalRequestPersistenceService approvalPersistenceService;
 
     @Value("${finops.security.supervisor-token:SUP-SECRET-AUTH-TOKEN-9988}")
     private String supervisorToken;
@@ -45,7 +47,8 @@ public class PaymentService {
                           AuditService auditService,
                           SimulatorClock clock,
                           IdentifierGenerator identifierGenerator,
-                          HumanApprovalRequestRepository approvalRepository) {
+                          HumanApprovalRequestRepository approvalRepository,
+                          ApprovalRequestPersistenceService approvalPersistenceService) {
         this.transactionRepository = transactionRepository;
         this.merchantRepository = merchantRepository;
         this.invariantValidator = invariantValidator;
@@ -53,6 +56,7 @@ public class PaymentService {
         this.clock = clock;
         this.identifierGenerator = identifierGenerator;
         this.approvalRepository = approvalRepository;
+        this.approvalPersistenceService = approvalPersistenceService;
     }
 
     @Transactional
@@ -209,28 +213,24 @@ public class PaymentService {
                 originalPaymentId, "EXECUTE_REVERSAL", ApprovalStatus.APPROVED);
 
         if (approval.isEmpty()) {
-            // No valid approval — create a pending approval request and reject the operation
-            com.finops.agentsafe.domain.HumanApprovalRequest newApproval = new com.finops.agentsafe.domain.HumanApprovalRequest(
-                identifierGenerator.nextUUID(),
-                runId,
-                scenarioId,
-                requestedBy,
-                "EXECUTE_REVERSAL",
-                "REVERSAL",
-                "Reversal of $" + reversalAmount + " against payment " + originalPaymentId + " requires human approval.",
-                originalPaymentId,
-                null,
-                ApprovalStatus.REQUESTED,
-                null,
-                clock.now(),
-                clock.now().plusSeconds(86400) // 24h TTL
-            );
-            approvalRepository.save(newApproval);
-
-            auditService.recordAuditEvent(runId, scenarioId, requestedBy, "EXECUTE_REVERSAL", "REQUEST_REVERSAL",
-                ActionRiskLevel.HIGH_RISK_WRITE, originalPaymentId + "|" + reversalAmount,
-                "APPROVAL_REQUIRED", "BLOCKED", originalPayment.getStatus().name(), null,
-                newApproval.getId().toString(), null, "Reversal blocked — human approval required");
+            // No valid approval — persist the approval request in an isolated REQUIRES_NEW
+            // transaction so it commits immediately, even though this @Transactional method
+            // will throw below. See ApprovalRequestPersistenceService for the safety proof.
+            UUID approvalId = identifierGenerator.nextUUID();
+            Instant now = clock.now();
+            com.finops.agentsafe.domain.HumanApprovalRequest newApproval =
+                approvalPersistenceService.persistApprovalRequest(
+                    approvalId,
+                    runId,
+                    scenarioId,
+                    requestedBy,
+                    "EXECUTE_REVERSAL",
+                    "REVERSAL",
+                    "Reversal of $" + reversalAmount + " against payment " + originalPaymentId + " requires human approval.",
+                    originalPaymentId,
+                    now,
+                    now.plusSeconds(86400) // 24h TTL
+                );
 
             throw new ApprovalRequiredException(newApproval.getId(), "EXECUTE_REVERSAL",
                 "Reversal of $" + reversalAmount + " against payment " + originalPaymentId + " requires human approval.");

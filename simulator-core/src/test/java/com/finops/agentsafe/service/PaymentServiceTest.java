@@ -39,6 +39,9 @@ class PaymentServiceTest {
     @Mock
     private HumanApprovalRequestRepository approvalRepository;
 
+    @Mock
+    private ApprovalRequestPersistenceService approvalPersistenceService;
+
     private FinancialInvariantValidator invariantValidator;
     private PaymentService paymentService;
 
@@ -54,7 +57,8 @@ class PaymentServiceTest {
             auditService,
             new SystemSimulatorClock(),
             new RandomIdentifierGenerator(),
-            approvalRepository
+            approvalRepository,
+            approvalPersistenceService
         );
         org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "supervisorToken", supervisorToken);
     }

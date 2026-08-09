@@ -44,7 +44,7 @@ public class PaymentStateMachine {
         ALLOWED_TRANSITIONS.put(TransactionStatus.SETTLED,
             EnumSet.of(TransactionStatus.RECONCILED, TransactionStatus.PARTIALLY_REFUNDED,
                        TransactionStatus.REFUNDED, TransactionStatus.REVERSED,
-                       TransactionStatus.CHARGEBACK_OPEN));
+                       TransactionStatus.PARTIALLY_REVERSED, TransactionStatus.CHARGEBACK_OPEN));
 
         ALLOWED_TRANSITIONS.put(TransactionStatus.RECONCILED,
             EnumSet.of(TransactionStatus.PARTIALLY_REFUNDED, TransactionStatus.REFUNDED));

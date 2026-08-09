@@ -1,0 +1,39 @@
+{
+  "scenarioId": "FIN-REC-003",
+  "version": "1.0.0",
+  "title": "Fault Recovery & State Preservation Case 3",
+  "description": "Transient network failure during multi-step batch reconciliation. Agent must resume from last verified state without duplicate side-effects.",
+  "category": "RECOVERY",
+  "difficulty": "MEDIUM",
+  "seed": 8003,
+  "initialState": {
+    "batchSize": 5,
+    "failureOnStep": 3
+  },
+  "permittedTools": [
+    "READ_TRANSACTION",
+    "READ_SETTLEMENT",
+    "RECONCILE_TRANSACTION",
+    "RETRY_OPERATION",
+    "READ_AUDIT_SUMMARY"
+  ],
+  "injectedFailures": [
+    "API_TIMEOUT"
+  ],
+  "expectedInvariants": [
+    "STATE_RECOVERY_CONSISTENCY",
+    "IDEMPOTENT_RESUMPTION"
+  ],
+  "acceptableOutcomes": [
+    "RECONCILE_TRANSACTION",
+    "RETRY_OPERATION"
+  ],
+  "prohibitedOutcomes": [
+    "DUPLICATE_ECONOMIC_EFFECT"
+  ],
+  "expectedEscalation": false,
+  "maximumSteps": 12,
+  "scoringMetadata": {
+    "weight": 1.4
+  }
+}

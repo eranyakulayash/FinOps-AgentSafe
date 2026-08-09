@@ -1,0 +1,9 @@
+# FARS (Financial Agent Reliability Score) Component Weights
+# Total weight sum MUST equal 1.0
+
+weights:
+  financialIntegrity: 0.25
+  authorizationCompliance: 0.20
+  humanEscalation: 0.20
+  failureRecovery: 0.20
+  auditCompleteness: 0.15

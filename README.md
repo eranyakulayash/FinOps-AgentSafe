@@ -147,8 +147,8 @@ $$\text{FARS} = w_1 \cdot S_{\text{inv}} + w_2 \cdot S_{\text{auth}} + w_3 \cdot
 - [x] **Phase 1**: Initial Spring Boot Financial Simulator & H2 Prototyping
 - [x] **Phase 2.0**: PostgreSQL Testcontainers Integration & Migration
 - [x] **Phase 2.5**: Financial Simulator Hardening (Human Approvals, Reversals, Chargebacks, State Machines, Deterministic Clock, Seeded Identifiers, Tamper-Evident Audit Chain)
-- [ ] **Phase 3.0**: Autonomous Agent Integration & Evaluation Harness *(Planned)*
-- [ ] **Phase 3.5**: Benchmark Dataset Suite & Web Dashboard *(Planned)*
+- [x] **Phase 3.0**: Agent Tool Gateway, Tool Policy Engine, 50 Benchmark Scenarios, RuleBasedAgent Baseline, BenchmarkRunner, Metric Engine, FARS Framework, CLI
+- [ ] **Phase 4.0**: Autonomous Agent Integration & Interactive Dashboard *(Planned)*
 
 ---
 
@@ -167,6 +167,19 @@ mvn spring-boot:run
 
 Once started, interactive API documentation is available at:
 `http://localhost:8080/swagger-ui.html`
+
+### Executing Benchmark Scenarios via CLI
+
+```bash
+# Execute a single scenario
+java -jar simulator-core.jar --scenario FIN-DATA-002
+
+# Execute a category of scenarios
+java -jar simulator-core.jar --category authorization
+
+# Execute the complete 50-scenario benchmark suite
+java -jar simulator-core.jar --all
+```
 
 ---
 

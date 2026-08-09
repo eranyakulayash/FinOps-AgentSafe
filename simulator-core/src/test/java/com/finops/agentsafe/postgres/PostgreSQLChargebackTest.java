@@ -115,11 +115,10 @@ class PostgreSQLChargebackTest extends AbstractPostgreSQLIntegrationTest {
         Chargeback cb1 = chargebackService.openChargeback(payId, new BigDecimal("100.00"),
             "FRAUD", idempKey, "SCENARIO-CB", UUID.randomUUID());
 
-        // Second attempt with same idempotency key — should be rejected by UNIQUE constraint
-        // Since the payment is now CHARGEBACK_OPEN, this also tests state machine
-        assertThrows(Exception.class,
-            () -> chargebackService.openChargeback(payId, new BigDecimal("100.00"),
-                "FRAUD", idempKey, "SCENARIO-CB", UUID.randomUUID()));
+        Chargeback cb2 = chargebackService.openChargeback(payId, new BigDecimal("100.00"),
+            "FRAUD", idempKey, "SCENARIO-CB", UUID.randomUUID());
+
+        assertEquals(cb1.getId(), cb2.getId(), "Duplicate idempotency key must return the same chargeback");
     }
 
     @Test

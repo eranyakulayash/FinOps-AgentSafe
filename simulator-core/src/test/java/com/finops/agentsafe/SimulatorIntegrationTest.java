@@ -2,11 +2,15 @@ package com.finops.agentsafe;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finops.agentsafe.domain.Merchant;
+import com.finops.agentsafe.domain.SettlementBatch;
+import com.finops.agentsafe.domain.SettlementLineItem;
 import com.finops.agentsafe.dto.ExceptionRequest;
 import com.finops.agentsafe.dto.PaymentRequest;
 import com.finops.agentsafe.dto.ReconciliationRequest;
 import com.finops.agentsafe.enums.ExceptionType;
+import com.finops.agentsafe.enums.SettlementStatus;
 import com.finops.agentsafe.repository.SettlementBatchRepository;
+import com.finops.agentsafe.repository.SettlementLineItemRepository;
 import com.finops.agentsafe.service.SyntheticDataService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +39,9 @@ class SimulatorIntegrationTest extends AbstractPostgreSQLIntegrationTest {
     private SettlementBatchRepository batchRepository;
 
     @Autowired
+    private SettlementLineItemRepository lineItemRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     private final String supervisorToken = "SUP-SECRET-AUTH-TOKEN-9988";
@@ -42,14 +49,19 @@ class SimulatorIntegrationTest extends AbstractPostgreSQLIntegrationTest {
     @Test
     @DisplayName("Full Financial Workflow Integration Test: Payment -> Reconciliation -> Exception -> Settlement Approval -> Audit Trail")
     void testEndToEndFinancialWorkflow() throws Exception {
-        // 1. Seed synthetic scenario
+        // 1. Seed synthetic scenario — creates a merchant, transactions, and a settlement batch
         long seed = 99001;
         Merchant merchant = syntheticDataService.seedSyntheticScenario(seed, "Global Enterprise Inc", 2);
-        UUID batchId = UUID.nameUUIDFromBytes(("STL-" + seed).getBytes());
 
-        // 2. Process a new payment via REST API
+        // The batch created by the seeder is keyed from seed + default generator version.
+        // We use this batch for the settlement-approval steps (6-7).
+        UUID seededBatchId = UUID.nameUUIDFromBytes(
+            ("STL-" + seed + "-" + SyntheticDataService.DEFAULT_GENERATOR_VERSION).getBytes());
+
+        // 2. Process a new payment via REST API — this is the transaction we will reconcile.
+        String newTxId = "TX-99001-NEW";
         PaymentRequest paymentRequest = new PaymentRequest(
-            "TX-99001-NEW",
+            newTxId,
             "IDEMP-TX-99001-NEW",
             merchant.getId(),
             new BigDecimal("250.00"),
@@ -61,14 +73,38 @@ class SimulatorIntegrationTest extends AbstractPostgreSQLIntegrationTest {
                 .content(objectMapper.writeValueAsString(paymentRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.id").value("TX-99001-NEW"))
+                .andExpect(jsonPath("$.data.id").value(newTxId))
                 .andExpect(jsonPath("$.data.amount").value(250.00));
 
-        // 3. Reconcile an existing transaction with settlement line item
-        String txToReconcile = "TX-99001-0001";
-        UUID lineItemId = UUID.nameUUIDFromBytes(("LINE-" + txToReconcile).getBytes());
+        // 3. Create a self-contained settlement batch + line item for TX-99001-NEW.
+        //    This makes the reconciliation step fully deterministic and independent of
+        //    seed-generated transaction IDs (which use a versioned format: TX-seed-ver-NNNN).
+        UUID reconBatchId = UUID.randomUUID();
+        SettlementBatch reconBatch = new SettlementBatch(
+            reconBatchId,
+            merchant.getId(),
+            "recon-test-batch.csv",
+            "Self-contained reconciliation batch for SimulatorIntegrationTest",
+            new BigDecimal("250.00"),
+            new BigDecimal("6.25"),
+            new BigDecimal("243.75"),
+            SettlementStatus.UNPROCESSED
+        );
+        batchRepository.save(reconBatch);
 
-        ReconciliationRequest reconReq = new ReconciliationRequest(txToReconcile, lineItemId);
+        UUID lineItemId = UUID.randomUUID();
+        SettlementLineItem lineItem = new SettlementLineItem(
+            lineItemId,
+            reconBatch,
+            "EXT-" + newTxId,
+            new BigDecimal("250.00"),
+            new BigDecimal("6.25"),
+            new BigDecimal("243.75")
+        );
+        lineItemRepository.save(lineItem);
+
+        // 4. Reconcile TX-99001-NEW against the line item created above
+        ReconciliationRequest reconReq = new ReconciliationRequest(newTxId, lineItemId);
 
         mockMvc.perform(post("/api/v1/reconciliation/match")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -77,10 +113,10 @@ class SimulatorIntegrationTest extends AbstractPostgreSQLIntegrationTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.matchStatus").value("MATCHED"));
 
-        // 4. Log a financial exception
+        // 5. Log a financial exception against the same transaction
         ExceptionRequest exReq = new ExceptionRequest(
-            txToReconcile,
-            batchId,
+            newTxId,
+            reconBatchId,
             ExceptionType.AMOUNT_MISMATCH,
             "MEDIUM",
             "Discrepancy investigated during automated benchmark run"
@@ -92,18 +128,18 @@ class SimulatorIntegrationTest extends AbstractPostgreSQLIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // 5. Attempt settlement approval WITHOUT token (Should fail with 403 Forbidden)
-        mockMvc.perform(post("/api/v1/settlements/" + batchId + "/approve"))
+        // 6. Attempt settlement approval WITHOUT token (Should fail with 403 Forbidden)
+        mockMvc.perform(post("/api/v1/settlements/" + seededBatchId + "/approve"))
                 .andExpect(status().isForbidden());
 
-        // 6. Approve settlement WITH supervisor token (Should succeed)
-        mockMvc.perform(post("/api/v1/settlements/" + batchId + "/approve")
+        // 7. Approve seeded settlement batch WITH supervisor token (Should succeed)
+        mockMvc.perform(post("/api/v1/settlements/" + seededBatchId + "/approve")
                 .header("X-Supervisor-Token", supervisorToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
 
-        // 7. Verify audit trail contains logged events
+        // 8. Verify audit trail contains logged events
         mockMvc.perform(get("/api/v1/audit/scenario/DEFAULT_SCENARIO"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))

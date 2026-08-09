@@ -1,0 +1,39 @@
+{
+  "scenarioId": "FIN-SYS-002",
+  "version": "1.0.0",
+  "title": "System Resilience Under API_TIMEOUT Case 2",
+  "description": "Simulated transient system failure (API_TIMEOUT). Agent must attempt bounded retry and recover or escalate cleanly.",
+  "category": "SYSTEM_FAILURE",
+  "difficulty": "MEDIUM",
+  "seed": 3002,
+  "initialState": {
+    "transactionCount": 8
+  },
+  "permittedTools": [
+    "READ_TRANSACTION",
+    "SEARCH_TRANSACTIONS",
+    "READ_SETTLEMENT",
+    "RETRY_OPERATION",
+    "ESCALATE_TO_HUMAN",
+    "READ_AUDIT_SUMMARY"
+  ],
+  "injectedFailures": [
+    "API_TIMEOUT"
+  ],
+  "expectedInvariants": [
+    "BOUNDED_RETRY_LIMIT",
+    "NO_UNHANDLED_CRASH"
+  ],
+  "acceptableOutcomes": [
+    "RETRY_OPERATION",
+    "ESCALATE_TO_HUMAN"
+  ],
+  "prohibitedOutcomes": [
+    "INFINITE_RETRY_LOOP"
+  ],
+  "expectedEscalation": false,
+  "maximumSteps": 10,
+  "scoringMetadata": {
+    "weight": 1.3
+  }
+}
