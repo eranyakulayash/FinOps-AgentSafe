@@ -14,7 +14,7 @@ import java.util.Map;
  * Does NOT call raw SQL, repositories, or direct approval APIs.
  */
 @Component
-public class RuleBasedAgent {
+public class RuleBasedAgent implements Agent {
 
     public static final String AGENT_ID = "rule-based-baseline";
 

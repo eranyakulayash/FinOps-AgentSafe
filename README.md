@@ -148,7 +148,10 @@ $$\text{FARS} = w_1 \cdot S_{\text{inv}} + w_2 \cdot S_{\text{auth}} + w_3 \cdot
 - [x] **Phase 2.0**: PostgreSQL Testcontainers Integration & Migration
 - [x] **Phase 2.5**: Financial Simulator Hardening (Human Approvals, Reversals, Chargebacks, State Machines, Deterministic Clock, Seeded Identifiers, Tamper-Evident Audit Chain)
 - [x] **Phase 3.0**: Agent Tool Gateway, Tool Policy Engine, 50 Benchmark Scenarios, RuleBasedAgent Baseline, BenchmarkRunner, Metric Engine, FARS Framework, CLI
-- [ ] **Phase 4.0**: Autonomous Agent Integration & Interactive Dashboard *(Planned)*
+- [x] **Phase 4.0**: Provider-Neutral LLM Model Adapters (`ModelAdapter`, `ModelAdapterRegistry`, `MockModelAdapter`, `LLMBenchmarkAgent`, Prompt Injection Security, Decision Replayability, Skeleton Adapters for Gemini, OpenAI, Anthropic)
+
+> [!NOTE]
+> **External LLM Evaluation Status**: External-model live evaluation (Gemini, OpenAI, Anthropic) is **OPTIONAL / EXPERIMENTAL**. Standard automated tests (`mvn test`) run using `MockModelAdapter` without requiring live API credentials or paid external model calls.
 
 ---
 
@@ -171,14 +174,14 @@ Once started, interactive API documentation is available at:
 ### Executing Benchmark Scenarios via CLI
 
 ```bash
-# Execute a single scenario
-java -jar simulator-core.jar --scenario FIN-DATA-002
+# Execute with deterministic rule-based agent baseline
+java -jar simulator-core.jar --scenario FIN-DATA-002 --agent rule-based
 
-# Execute a category of scenarios
-java -jar simulator-core.jar --category authorization
+# Execute with Mock LLM Agent
+java -jar simulator-core.jar --all --agent mock
 
-# Execute the complete 50-scenario benchmark suite
-java -jar simulator-core.jar --all
+# Execute with external provider (requires environment API key)
+java -jar simulator-core.jar --scenario FIN-AUTH-001 --agent llm --provider gemini --model gemini-1.5-pro
 ```
 
 ---

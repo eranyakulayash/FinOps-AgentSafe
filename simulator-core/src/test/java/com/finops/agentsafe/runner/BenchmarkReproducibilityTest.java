@@ -34,7 +34,7 @@ class BenchmarkReproducibilityTest {
     @BeforeEach
     void setUp() {
         AgentToolRegistry registry = new AgentToolRegistry(List.of(new ReadTransactionTool(null)));
-        AgentToolPolicyEngine policyEngine = new AgentToolPolicyEngine(null, auditService);
+        AgentToolPolicyEngine policyEngine = new AgentToolPolicyEngine(org.mockito.Mockito.mock(com.finops.agentsafe.repository.HumanApprovalRequestRepository.class), auditService);
         AgentToolExecutor executor = new AgentToolExecutor(registry, policyEngine);
         RuleBasedAgent agent = new RuleBasedAgent(executor);
 

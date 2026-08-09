@@ -1,5 +1,10 @@
 package com.finops.agentsafe.cli;
 
+import com.finops.agentsafe.agent.Agent;
+import com.finops.agentsafe.agent.LLMBenchmarkAgent;
+import com.finops.agentsafe.agent.RuleBasedAgent;
+import com.finops.agentsafe.model.ModelAdapterRegistry;
+import com.finops.agentsafe.model.ModelConfiguration;
 import com.finops.agentsafe.runner.BenchmarkRunResult;
 import com.finops.agentsafe.runner.BenchmarkRunner;
 import com.finops.agentsafe.scenario.BenchmarkScenario;
@@ -13,19 +18,29 @@ import java.util.*;
  * Command-Line Benchmark Execution Interface.
  *
  * Usage:
- *   java -jar simulator-core.jar --scenario FIN-DATA-002
- *   java -jar simulator-core.jar --category authorization
- *   java -jar simulator-core.jar --all
+ *   java -jar simulator-core.jar --scenario FIN-DATA-002 --agent rule-based
+ *   java -jar simulator-core.jar --category authorization --agent mock
+ *   java -jar simulator-core.jar --all --agent llm --provider gemini --model gemini-1.5-pro
  */
 @Component
 public class BenchmarkCLI implements CommandLineRunner {
 
     private final BenchmarkScenarioLoader scenarioLoader;
     private final BenchmarkRunner benchmarkRunner;
+    private final RuleBasedAgent ruleBasedAgent;
+    private final LLMBenchmarkAgent llmAgent;
+    private final ModelAdapterRegistry adapterRegistry;
 
-    public BenchmarkCLI(BenchmarkScenarioLoader scenarioLoader, BenchmarkRunner benchmarkRunner) {
+    public BenchmarkCLI(BenchmarkScenarioLoader scenarioLoader,
+                        BenchmarkRunner benchmarkRunner,
+                        RuleBasedAgent ruleBasedAgent,
+                        LLMBenchmarkAgent llmAgent,
+                        ModelAdapterRegistry adapterRegistry) {
         this.scenarioLoader = scenarioLoader;
         this.benchmarkRunner = benchmarkRunner;
+        this.ruleBasedAgent = ruleBasedAgent;
+        this.llmAgent = llmAgent;
+        this.adapterRegistry = adapterRegistry;
     }
 
     @Override
@@ -40,6 +55,31 @@ public class BenchmarkCLI implements CommandLineRunner {
         System.out.println("==================================================");
         System.out.println(" FinOps-AgentSafe Benchmark CLI Engine v0.1.0 ");
         System.out.println("==================================================");
+
+        String agentType = parsedArgs.getOrDefault("agent", "rule-based").toLowerCase(Locale.ROOT);
+        String provider = parsedArgs.getOrDefault("provider", "mock").toLowerCase(Locale.ROOT);
+        String modelName = parsedArgs.get("model");
+
+        Agent selectedAgent = ruleBasedAgent;
+
+        if ("llm".equals(agentType) || "mock".equals(agentType)) {
+            String selectedProvider = "mock".equals(agentType) ? "mock" : provider;
+            var adapterOpt = adapterRegistry.getAdapter(selectedProvider);
+
+            if (adapterOpt.isEmpty() || !adapterOpt.get().isConfigured()) {
+                System.out.println("[CLI ERROR] PROVIDER_NOT_CONFIGURED: Model provider '" + selectedProvider + "' is not configured or missing environment API key.");
+                System.out.println("[CLI INFO] Available configured adapters: " + adapterRegistry.getAllAdapters().stream().filter(a -> a.isConfigured()).map(a -> a.getProviderName()).toList());
+                return;
+            }
+
+            ModelConfiguration config = new ModelConfiguration(
+                selectedProvider,
+                modelName != null ? modelName : ("mock".equals(selectedProvider) ? "mock-deterministic-v1" : selectedProvider + "-default"),
+                0.0, 2048, 10000L, 3, 42L, "financial-agent-system-v1"
+            );
+            llmAgent.setModelConfiguration(config);
+            selectedAgent = llmAgent;
+        }
 
         List<BenchmarkScenario> scenariosToRun = new ArrayList<>();
 
@@ -58,18 +98,19 @@ public class BenchmarkCLI implements CommandLineRunner {
             return;
         }
 
-        System.out.println("[CLI] Executing " + scenariosToRun.size() + " scenario(s)...");
+        System.out.println("[CLI] Executing " + scenariosToRun.size() + " scenario(s) using agent [" + selectedAgent.getAgentId() + "]...");
 
         List<BenchmarkRunResult> results = new ArrayList<>();
         for (BenchmarkScenario scenario : scenariosToRun) {
             System.out.print("Running " + scenario.getScenarioId() + " (" + scenario.getCategory() + ")... ");
-            BenchmarkRunResult res = benchmarkRunner.runScenario(scenario);
+            BenchmarkRunResult res = benchmarkRunner.runScenario(scenario, selectedAgent);
             results.add(res);
             System.out.println("DONE -> FARS: " + res.getMetrics().getFarsScore() + " | Integrity: " + res.isFinancialIntegrityPreserved());
         }
 
         System.out.println("==================================================");
         System.out.println(" Execution Summary ");
+        System.out.println(" Agent: " + selectedAgent.getAgentId());
         System.out.println(" Total Scenarios Executed: " + results.size());
         double avgFars = results.stream().mapToDouble(r -> r.getMetrics().getFarsScore()).average().orElse(0.0);
         System.out.println(String.format(" Average Composite FARS Score: %.3f", avgFars));
@@ -85,6 +126,12 @@ public class BenchmarkCLI implements CommandLineRunner {
                 map.put("category", args[i + 1]);
             } else if ("--all".equalsIgnoreCase(args[i])) {
                 map.put("all", "true");
+            } else if ("--agent".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
+                map.put("agent", args[i + 1]);
+            } else if ("--provider".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
+                map.put("provider", args[i + 1]);
+            } else if ("--model".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
+                map.put("model", args[i + 1]);
             }
         }
         return map;

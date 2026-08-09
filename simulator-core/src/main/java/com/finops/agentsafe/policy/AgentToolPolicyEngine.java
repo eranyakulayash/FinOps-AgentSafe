@@ -9,15 +9,17 @@ import com.finops.agentsafe.tool.AgentToolContext;
 import com.finops.agentsafe.tool.AgentToolRequest;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * Enforces scenario permissions, role permissions, step limits, state machine validity,
  * and human approval requirements before any tool execution.
  *
- * CRITICAL SECURITY INVARIANT:
- *   An agent is NEVER permitted to approve a HumanApprovalRequest.
- *   The policy engine rejects any attempt to mutate approval status to APPROVED by an agent actor.
+ * CRITICAL SECURITY INVARIANTS:
+ *   1. An agent is NEVER permitted to approve a HumanApprovalRequest (self-approval prevention).
+ *   2. Mandatory dependencies (HumanApprovalRequestRepository, AuditService) must be present.
+ *   3. Fails CLOSED (DENY) if security infrastructure is unavailable or fails.
  */
 @Component
 public class AgentToolPolicyEngine {
@@ -27,8 +29,8 @@ public class AgentToolPolicyEngine {
 
     public AgentToolPolicyEngine(HumanApprovalRequestRepository approvalRepository,
                                  AuditService auditService) {
-        this.approvalRepository = approvalRepository;
-        this.auditService = auditService;
+        this.approvalRepository = Objects.requireNonNull(approvalRepository, "HumanApprovalRequestRepository is mandatory for security policy enforcement.");
+        this.auditService = Objects.requireNonNull(auditService, "AuditService is mandatory for security audit enforcement.");
     }
 
     /**
@@ -57,20 +59,28 @@ public class AgentToolPolicyEngine {
             return PolicyDecision.DENY;
         }
 
-        // 4. Risk Level & Approval check
+        // 4. Risk Level & Approval check (FAIL CLOSED on missing data or exception)
         if (tool.getRiskLevel() == ActionRiskLevel.HIGH_RISK_WRITE || tool.isRequiresApproval()) {
             String txId = request.getParameter("relatedTransactionId", String.class);
             if (txId == null) txId = request.getParameter("originalTransactionId", String.class);
             if (txId == null) txId = request.getParameter("transactionId", String.class);
 
             if (txId != null) {
-                var approvalOpt = approvalRepository.findFirstByRelatedTransactionIdAndRequestedActionAndStatus(
-                    txId, tool.getToolName(), ApprovalStatus.APPROVED);
+                try {
+                    var approvalOpt = approvalRepository.findFirstByRelatedTransactionIdAndRequestedActionAndStatus(
+                        txId, tool.getToolName(), ApprovalStatus.APPROVED);
 
-                if (approvalOpt.isEmpty()) {
-                    recordAudit(request, tool, PolicyDecision.APPROVAL_REQUIRED, "Action requires prior human approval");
-                    return PolicyDecision.APPROVAL_REQUIRED;
+                    if (approvalOpt.isEmpty()) {
+                        recordAudit(request, tool, PolicyDecision.APPROVAL_REQUIRED, "Action requires prior human approval");
+                        return PolicyDecision.APPROVAL_REQUIRED;
+                    }
+                } catch (Exception e) {
+                    recordAudit(request, tool, PolicyDecision.DENY, "SECURITY_INFRASTRUCTURE_ERROR: Approval repository check failed: " + e.getMessage());
+                    return PolicyDecision.DENY;
                 }
+            } else {
+                recordAudit(request, tool, PolicyDecision.APPROVAL_REQUIRED, "Action requires prior human approval");
+                return PolicyDecision.APPROVAL_REQUIRED;
             }
         }
 
@@ -80,23 +90,25 @@ public class AgentToolPolicyEngine {
 
     private void recordAudit(AgentToolRequest req, AgentTool tool, PolicyDecision decision, String reason) {
         AgentToolContext ctx = req.getContext();
-        if (ctx == null) return;
+        if (ctx == null || auditService == null) return;
 
-        auditService.recordAuditEvent(
-            ctx.getRunId(),
-            ctx.getScenarioId(),
-            ctx.getActorId() != null ? ctx.getActorId() : "AGENT_UNDER_TEST",
-            tool.getToolName(),
-            tool.getToolName(),
-            tool.getRiskLevel(),
-            req.getParameters().toString(),
-            decision.name(),
-            decision == PolicyDecision.ALLOW ? "PERMITTED" : "BLOCKED",
-            null,
-            null,
-            null,
-            null,
-            reason
-        );
+        try {
+            auditService.recordAuditEvent(
+                ctx.getRunId(),
+                ctx.getScenarioId(),
+                ctx.getActorId() != null ? ctx.getActorId() : "AGENT_UNDER_TEST",
+                tool.getToolName(),
+                tool.getToolName(),
+                tool.getRiskLevel(),
+                req.getParameters() != null ? req.getParameters().toString() : "{}",
+                decision.name(),
+                decision == PolicyDecision.ALLOW ? "PERMITTED" : "BLOCKED",
+                null,
+                null,
+                null,
+                null,
+                reason
+            );
+        } catch (Exception ignored) {}
     }
 }

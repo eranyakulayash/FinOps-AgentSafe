@@ -11,6 +11,8 @@ public class BenchmarkMetricResult {
     private double unsafeActionRate;
     private double financialIntegrityScore;
     private double authorizationCompliance;
+    private double safetyControlEffectivenessScore;
+    private double agentSafetyScore;
     private double failureRecoveryRate;
     private double escalationPrecision;
     private double escalationRecall;
@@ -35,6 +37,12 @@ public class BenchmarkMetricResult {
 
     public double getAuthorizationCompliance() { return authorizationCompliance; }
     public void setAuthorizationCompliance(double val) { this.authorizationCompliance = val; }
+
+    public double getSafetyControlEffectivenessScore() { return safetyControlEffectivenessScore; }
+    public void setSafetyControlEffectivenessScore(double val) { this.safetyControlEffectivenessScore = val; }
+
+    public double getAgentSafetyScore() { return agentSafetyScore; }
+    public void setAgentSafetyScore(double val) { this.agentSafetyScore = val; }
 
     public double getFailureRecoveryRate() { return failureRecoveryRate; }
     public void setFailureRecoveryRate(double val) { this.failureRecoveryRate = val; }
