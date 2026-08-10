@@ -5,6 +5,7 @@ import com.finops.agentsafe.agent.LLMBenchmarkAgent;
 import com.finops.agentsafe.agent.RuleBasedAgent;
 import com.finops.agentsafe.model.ModelAdapterRegistry;
 import com.finops.agentsafe.model.ModelConfiguration;
+import com.finops.agentsafe.pilot.GeminiPilotRunner;
 import com.finops.agentsafe.runner.BenchmarkRunResult;
 import com.finops.agentsafe.runner.BenchmarkRunner;
 import com.finops.agentsafe.scenario.BenchmarkScenario;
@@ -16,11 +17,7 @@ import java.util.*;
 
 /**
  * Command-Line Benchmark Execution Interface.
- *
- * Usage:
- *   java -jar simulator-core.jar --scenario FIN-DATA-002 --agent rule-based
- *   java -jar simulator-core.jar --category authorization --agent mock
- *   java -jar simulator-core.jar --all --agent llm --provider gemini --model gemini-1.5-pro
+ * Supports standard benchmark runs as well as controlled provider pilots (--pilot gemini --dry-run).
  */
 @Component
 public class BenchmarkCLI implements CommandLineRunner {
@@ -30,17 +27,20 @@ public class BenchmarkCLI implements CommandLineRunner {
     private final RuleBasedAgent ruleBasedAgent;
     private final LLMBenchmarkAgent llmAgent;
     private final ModelAdapterRegistry adapterRegistry;
+    private final GeminiPilotRunner geminiPilotRunner;
 
     public BenchmarkCLI(BenchmarkScenarioLoader scenarioLoader,
                         BenchmarkRunner benchmarkRunner,
                         RuleBasedAgent ruleBasedAgent,
                         LLMBenchmarkAgent llmAgent,
-                        ModelAdapterRegistry adapterRegistry) {
+                        ModelAdapterRegistry adapterRegistry,
+                        GeminiPilotRunner geminiPilotRunner) {
         this.scenarioLoader = scenarioLoader;
         this.benchmarkRunner = benchmarkRunner;
         this.ruleBasedAgent = ruleBasedAgent;
         this.llmAgent = llmAgent;
         this.adapterRegistry = adapterRegistry;
+        this.geminiPilotRunner = geminiPilotRunner;
     }
 
     @Override
@@ -48,6 +48,23 @@ public class BenchmarkCLI implements CommandLineRunner {
         if (args == null || args.length == 0) return;
 
         Map<String, String> parsedArgs = parseArgs(args);
+
+        // Check for --pilot command
+        if (parsedArgs.containsKey("pilot")) {
+            String pilotProvider = parsedArgs.get("pilot");
+            boolean dryRun = parsedArgs.containsKey("dry-run");
+            String model = parsedArgs.get("model");
+            if ("gemini".equalsIgnoreCase(pilotProvider)) {
+                geminiPilotRunner.runPilot(model, dryRun, parsedArgs.get("scenario"));
+                System.exit(0);
+                return;
+            } else {
+                System.out.println("[CLI ERROR] Unsupported pilot provider: " + pilotProvider + ". Currently only 'gemini' pilot is supported in Phase 5A.");
+                System.exit(1);
+                return;
+            }
+        }
+
         if (!parsedArgs.containsKey("scenario") && !parsedArgs.containsKey("category") && !parsedArgs.containsKey("all")) {
             return;
         }
@@ -132,6 +149,10 @@ public class BenchmarkCLI implements CommandLineRunner {
                 map.put("provider", args[i + 1]);
             } else if ("--model".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
                 map.put("model", args[i + 1]);
+            } else if ("--pilot".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
+                map.put("pilot", args[i + 1]);
+            } else if ("--dry-run".equalsIgnoreCase(args[i])) {
+                map.put("dry-run", "true");
             }
         }
         return map;

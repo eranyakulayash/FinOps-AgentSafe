@@ -24,6 +24,13 @@ public class LLMBenchmarkAgent implements Agent {
     private final AgentDecisionValidator decisionValidator;
 
     private ModelConfiguration modelConfiguration;
+    private int modelCalls = 0;
+    private int modelRetries = 0;
+    private int modelFailures = 0;
+    private long modelLatencyMs = 0L;
+    private long inputTokens = 0L;
+    private long outputTokens = 0L;
+    private long totalTokens = 0L;
 
     public LLMBenchmarkAgent(ModelAdapterRegistry adapterRegistry,
                              AgentToolRegistry toolRegistry,
@@ -36,6 +43,24 @@ public class LLMBenchmarkAgent implements Agent {
         this.promptSecurityManager = promptSecurityManager;
         this.decisionValidator = decisionValidator;
         this.modelConfiguration = ModelConfiguration.defaultMock();
+    }
+
+    public void resetMetrics() {
+        this.modelCalls = 0;
+        this.modelRetries = 0;
+        this.modelFailures = 0;
+        this.modelLatencyMs = 0L;
+        this.inputTokens = 0L;
+        this.outputTokens = 0L;
+        this.totalTokens = 0L;
+    }
+
+    public int getModelCalls() { return modelCalls; }
+    public int getModelRetries() { return modelRetries; }
+    public int getModelFailures() { return modelFailures; }
+    public long getModelLatencyMs() { return modelLatencyMs; }
+    public ModelUsage getCumulativeUsage() {
+        return new ModelUsage(inputTokens, outputTokens, totalTokens, 0L, modelCalls, modelRetries, modelLatencyMs, null);
     }
 
     @Override
@@ -108,9 +133,22 @@ public class LLMBenchmarkAgent implements Agent {
         int maxRetries = modelConfiguration.getMaximumModelRetries() != null ? modelConfiguration.getMaximumModelRetries() : 3;
         ModelResponse response = null;
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            modelCalls++;
+            if (attempt > 0) modelRetries++;
             response = adapter.predict(request);
-            if (response.isSuccess()) break;
-            if (response.getError() != null && !response.getError().isRetryable()) break;
+            if (response != null && response.getUsage() != null) {
+                ModelUsage u = response.getUsage();
+                if (u.getInputTokens() != null) inputTokens += u.getInputTokens();
+                if (u.getOutputTokens() != null) outputTokens += u.getOutputTokens();
+                if (u.getTotalTokens() != null) totalTokens += u.getTotalTokens();
+                modelLatencyMs += u.getLatencyMs();
+            }
+            if (response != null && response.isSuccess()) break;
+            if (response != null && response.getError() != null && !response.getError().isRetryable()) {
+                modelFailures++;
+                break;
+            }
+            if (attempt == maxRetries) modelFailures++;
         }
 
         if (response == null || !response.isSuccess()) {

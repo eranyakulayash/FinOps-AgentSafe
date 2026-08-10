@@ -40,6 +40,14 @@ public class ModelError {
         return new ModelError(ModelErrorKind.MODEL_MALFORMED_RESPONSE, "Malformed response from model: " + details, false, details);
     }
 
+    public static ModelError authenticationError(String details) {
+        return new ModelError(ModelErrorKind.MODEL_AUTHENTICATION_ERROR, "Authentication failed: " + details, false, details);
+    }
+
+    public static ModelError unavailable(String details) {
+        return new ModelError(ModelErrorKind.MODEL_UNAVAILABLE, "Service unavailable: " + details, true, details);
+    }
+
     public static ModelError providerError(String details, boolean retryable) {
         return new ModelError(ModelErrorKind.MODEL_PROVIDER_ERROR, "Provider error: " + details, retryable, details);
     }

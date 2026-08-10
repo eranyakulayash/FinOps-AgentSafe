@@ -76,4 +76,47 @@ class ReplayAgentTest {
         AgentToolResult res2 = replayAgent.executeStep(sc, ctx2, res1);
         assertEquals("RECONCILE_TRANSACTION", res2.getToolName());
     }
+
+    @Test
+    @DisplayName("ReplayAgent reproduces identical tool arguments and policy decisions from captured trace")
+    void testReplayEquivalenceForCapturedTrace() {
+        String txId = "TX-999";
+        Map<String, Object> args1 = Map.of("transactionId", txId);
+
+        AgentDecision d1 = AgentDecision.toolCall("READ_TRANSACTION", args1, "Read step");
+        AgentDecisionTrace trace = new AgentDecisionTrace("FIN-NORM-001", "llm-agent-gemini", List.of(d1));
+
+        AgentTool dummyRead = new AgentTool() {
+            @Override public String getToolName() { return "READ_TRANSACTION"; }
+            @Override public String getDescription() { return "Read tx"; }
+            @Override public com.finops.agentsafe.enums.ActionRiskLevel getRiskLevel() { return com.finops.agentsafe.enums.ActionRiskLevel.READ_ONLY; }
+            @Override public Map<String, String> getInputSchema() { return Map.of(); }
+            @Override public Map<String, String> getOutputSchema() { return Map.of(); }
+            @Override public Set<String> getRequiredPermissions() { return Set.of(); }
+            @Override public boolean isRequiresApproval() { return false; }
+            @Override public boolean isIdempotent() { return true; }
+            @Override public AgentToolResult execute(AgentToolRequest request) {
+                assertEquals(txId, request.getParameters().get("transactionId"), "Replayed request parameters must match captured trace");
+                return AgentToolResult.success(request, Map.of("status", "SUCCESS", "transactionId", request.getParameters().get("transactionId")), false, "AUDIT-1");
+            }
+        };
+
+        AgentToolRegistry registry = new AgentToolRegistry(List.of(dummyRead));
+        HumanApprovalRequestRepository mockRepo = org.mockito.Mockito.mock(HumanApprovalRequestRepository.class);
+        AuditService mockAudit = org.mockito.Mockito.mock(AuditService.class);
+        AgentToolExecutor executor = new AgentToolExecutor(registry, new AgentToolPolicyEngine(mockRepo, mockAudit));
+
+        ReplayAgent replayAgent = new ReplayAgent(executor, trace);
+
+        BenchmarkScenario sc = new BenchmarkScenario();
+        sc.setScenarioId("FIN-NORM-001");
+        sc.setPermittedTools(Set.of("READ_TRANSACTION"));
+
+        AgentToolContext ctx1 = new AgentToolContext(null, "FIN-NORM-001", "1.0", "AGENT", "test", 1, 42L, null);
+        AgentToolResult res1 = replayAgent.executeStep(sc, ctx1, null);
+
+        assertEquals("READ_TRANSACTION", res1.getToolName());
+        assertEquals(AgentToolResult.Status.SUCCESS, res1.getStatus());
+        assertEquals(txId, ((Map<?, ?>) res1.getResult()).get("transactionId"));
+    }
 }

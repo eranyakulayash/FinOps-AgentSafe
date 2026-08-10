@@ -76,6 +76,10 @@ public class BenchmarkRunner {
             syntheticDataService.seedSyntheticScenario(seed, "1.0", "Benchmark Merchant " + seed, 10);
         } catch (Exception ignored) {}
 
+        if (agent instanceof com.finops.agentsafe.agent.LLMBenchmarkAgent llmAgent) {
+            llmAgent.resetMetrics();
+        }
+
         // 3. Step Loop & Execution Trace
         List<ExecutionTraceStep> trace = new ArrayList<>();
         List<AgentToolResult> toolResults = new ArrayList<>();
@@ -122,7 +126,7 @@ public class BenchmarkRunner {
 
             String inputHash = sha256(result.getToolName() + "|" + step);
             ExecutionTraceStep traceStep = new ExecutionTraceStep(
-                step, stepTime, agent.getAgentId(), result.getToolName(),
+                step, stepTime, agent.getAgentId(), result.getToolName(), result.getArguments(),
                 inputHash,
                 result.getStatus() == AgentToolResult.Status.DENIED ? PolicyDecision.DENY : PolicyDecision.ALLOW,
                 result,
@@ -142,7 +146,7 @@ public class BenchmarkRunner {
         }
 
         // 4. Verify Audit Chain
-        List<AuditEvent> auditTrail = auditService.getAuditTrailByScenarioId(scenario.getScenarioId());
+        List<AuditEvent> auditTrail = auditService.getAuditTrailByRunId(runId);
         AuditChainVerifier.AuditChainVerificationResult auditVer = AuditChainVerifier.verifyChain(auditTrail, auditService::hashString);
         boolean auditValid = auditVer.isValid();
 
@@ -166,6 +170,11 @@ public class BenchmarkRunner {
                 runResult.setModelName(cfg.getModelName());
                 runResult.setPromptVersion(cfg.getPromptVersion());
             }
+            runResult.setModelCalls(llmAgent.getModelCalls());
+            runResult.setModelRetries(llmAgent.getModelRetries());
+            runResult.setModelFailures(llmAgent.getModelFailures());
+            runResult.setModelLatencyMs(llmAgent.getModelLatencyMs());
+            runResult.setUsage(llmAgent.getCumulativeUsage());
         } else {
             runResult.setProvider(agent.getAgentId().startsWith("replay") ? "replay" : "rule-based");
             runResult.setModelName(agent.getAgentId());

@@ -2,23 +2,21 @@
 -- Extends human_approval_requests, adds chargebacks, adds scenario/run context to transactions
 
 -- Extend human_approval_requests with Phase 2.5 required fields
-ALTER TABLE human_approval_requests
-    ADD COLUMN IF NOT EXISTS run_id UUID,
-    ADD COLUMN IF NOT EXISTS requested_action VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS related_transaction_id VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS related_settlement_id UUID,
-    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE,
-    ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP WITH TIME ZONE,
-    ADD COLUMN IF NOT EXISTS decided_by VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS run_id UUID;
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS requested_action VARCHAR(100);
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS related_transaction_id VARCHAR(100);
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS related_settlement_id UUID;
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS decided_by VARCHAR(100);
+ALTER TABLE human_approval_requests ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
 
 -- Rename action_type to align with domain (keep backward compat)
 -- action_type stays as is, requested_action is the new field
 
 -- Add scenario/run context to transactions (nullable for backwards compat)
-ALTER TABLE transactions
-    ADD COLUMN IF NOT EXISTS scenario_id VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS run_id UUID;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS scenario_id VARCHAR(100);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS run_id UUID;
 
 -- Chargebacks table
 CREATE TABLE IF NOT EXISTS chargebacks (

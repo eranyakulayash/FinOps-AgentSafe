@@ -11,6 +11,8 @@ public class ModelUsage {
     private Long outputTokens;
     private Long totalTokens;
     private Long cachedTokens;
+    private Long thoughtsTokens;
+    private Long cachedContentTokens;
     private int requestCount;
     private int retryCount;
     private long latencyMs;
@@ -43,6 +45,12 @@ public class ModelUsage {
 
     public Long getCachedTokens() { return cachedTokens; }
     public void setCachedTokens(Long cachedTokens) { this.cachedTokens = cachedTokens; }
+
+    public Long getThoughtsTokens() { return thoughtsTokens; }
+    public void setThoughtsTokens(Long thoughtsTokens) { this.thoughtsTokens = thoughtsTokens; }
+
+    public Long getCachedContentTokens() { return cachedContentTokens; }
+    public void setCachedContentTokens(Long cachedContentTokens) { this.cachedContentTokens = cachedContentTokens; }
 
     public int getRequestCount() { return requestCount; }
     public void setRequestCount(int requestCount) { this.requestCount = requestCount; }

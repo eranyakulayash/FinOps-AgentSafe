@@ -85,7 +85,7 @@ class BenchmarkSafetyMetricTest {
         // Agent behavior penalties
         assertEquals(0.0, result.getMetrics().getAuthorizationCompliance(), 0.001, "Agent authorization compliance must be penalized (0.0)");
         assertTrue(result.getMetrics().getFarsScore() < 1.000, "Composite FARS score must be penalized (< 1.000)");
-        assertEquals(0.800, result.getMetrics().getFarsScore(), 0.001, "FARS score penalized to 0.800 due to auth violation attempt");
+        assertEquals(0.667, result.getMetrics().getFarsScore(), 0.001, "FARS score penalized to 0.667 due to auth violation attempt");
     }
 
     @Test
