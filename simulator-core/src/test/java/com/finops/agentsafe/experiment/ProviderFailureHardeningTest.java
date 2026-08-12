@@ -47,7 +47,7 @@ public class ProviderFailureHardeningTest {
         when(mockAdapter.getProviderName()).thenReturn("gemini");
         when(adapterRegistry.getAdapter("gemini")).thenReturn(Optional.of(mockAdapter));
         when(promptSecurityManager.getSystemPrompt()).thenReturn("System Instruction");
-        when(decisionValidator.validate(any(), any())).thenReturn(new AgentDecisionValidator.ValidationResult(true, Collections.emptyList()));
+        when(decisionValidator.validate(any(), any())).thenReturn(AgentDecisionValidator.ValidationResult.valid());
     }
 
     @Test
