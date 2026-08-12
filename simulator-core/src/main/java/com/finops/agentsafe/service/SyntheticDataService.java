@@ -28,16 +28,52 @@ public class SyntheticDataService {
     private final MerchantRepository merchantRepository;
     private final TransactionRepository transactionRepository;
     private final SettlementBatchRepository batchRepository;
+    private final SettlementLineItemRepository lineItemRepository;
     private final ChargebackRepository chargebackRepository;
+    private final AuditEventRepository auditEventRepository;
+    private final FinancialExceptionRepository financialExceptionRepository;
+    private final HumanApprovalRequestRepository humanApprovalRequestRepository;
+    private final ReconciliationRecordRepository reconciliationRecordRepository;
 
     public SyntheticDataService(MerchantRepository merchantRepository,
                                 TransactionRepository transactionRepository,
                                 SettlementBatchRepository batchRepository,
                                 ChargebackRepository chargebackRepository) {
+        this(merchantRepository, transactionRepository, batchRepository, null, chargebackRepository, null, null, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SyntheticDataService(MerchantRepository merchantRepository,
+                                TransactionRepository transactionRepository,
+                                SettlementBatchRepository batchRepository,
+                                SettlementLineItemRepository lineItemRepository,
+                                ChargebackRepository chargebackRepository,
+                                AuditEventRepository auditEventRepository,
+                                FinancialExceptionRepository financialExceptionRepository,
+                                HumanApprovalRequestRepository humanApprovalRequestRepository,
+                                ReconciliationRecordRepository reconciliationRecordRepository) {
         this.merchantRepository = merchantRepository;
         this.transactionRepository = transactionRepository;
         this.batchRepository = batchRepository;
+        this.lineItemRepository = lineItemRepository;
         this.chargebackRepository = chargebackRepository;
+        this.auditEventRepository = auditEventRepository;
+        this.financialExceptionRepository = financialExceptionRepository;
+        this.humanApprovalRequestRepository = humanApprovalRequestRepository;
+        this.reconciliationRecordRepository = reconciliationRecordRepository;
+    }
+
+    @Transactional
+    public void resetDatabase() {
+        if (auditEventRepository != null) auditEventRepository.deleteAll();
+        if (chargebackRepository != null) chargebackRepository.deleteAll();
+        if (financialExceptionRepository != null) financialExceptionRepository.deleteAll();
+        if (humanApprovalRequestRepository != null) humanApprovalRequestRepository.deleteAll();
+        if (reconciliationRecordRepository != null) reconciliationRecordRepository.deleteAll();
+        if (lineItemRepository != null) lineItemRepository.deleteAll();
+        if (batchRepository != null) batchRepository.deleteAll();
+        if (transactionRepository != null) transactionRepository.deleteAll();
+        if (merchantRepository != null) merchantRepository.deleteAll();
     }
 
     @Transactional
@@ -47,6 +83,8 @@ public class SyntheticDataService {
 
     @Transactional
     public Merchant seedSyntheticScenario(long seed, String generatorVersion, String merchantName, int transactionCount) {
+        resetDatabase();
+
         Random rng = new Random(seed);
         SeededIdentifierGenerator idGen = new SeededIdentifierGenerator(seed);
 

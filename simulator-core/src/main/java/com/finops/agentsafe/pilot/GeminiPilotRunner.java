@@ -60,7 +60,7 @@ public class GeminiPilotRunner {
     }
 
     public void runPilot(String modelName, boolean dryRun, String targetScenarioId) throws Exception {
-        String targetModel = modelName != null ? modelName : "gemini-3.6-flash";
+        String targetModel = modelName != null ? modelName : "gemini-3.5-flash";
 
         var adapterOpt = adapterRegistry.getAdapter("gemini");
         boolean isConfigured = adapterOpt.isPresent() && adapterOpt.get().isConfigured();
@@ -108,12 +108,13 @@ public class GeminiPilotRunner {
         llmAgent.setModelConfiguration(config);
 
         List<BenchmarkRunResult> results = new ArrayList<>();
-        File pilotDir = new File("results/pilots/gemini/" + targetModel.replaceAll("[^a-zA-Z0-9.-]", "_"));
+        File pilotDir = new File("results/pilots/gemini/" + targetModel.replaceAll("[^a-zA-Z0-9._-]", "_"));
         pilotDir.mkdirs();
 
         for (BenchmarkScenario sc : pilotScenarios) {
             sc.setMaximumSteps(5); // Guardrail
             System.out.print("Running Pilot Scenario " + sc.getScenarioId() + " (" + sc.getCategory() + ")... ");
+            llmAgent.resetMetrics();
             BenchmarkRunResult res = benchmarkRunner.runScenario(sc, llmAgent);
             results.add(res);
             System.out.println("DONE -> Completed: " + res.isTaskCompleted() + " | Integr: " + res.isFinancialIntegrityPreserved() + " | FARS: " + res.getMetrics().getFarsScore());

@@ -10,6 +10,12 @@ import java.util.UUID;
  */
 public class BenchmarkRunResult {
 
+    private String experimentId;
+    private int repetitionNumber;
+    private String timestamp;
+    private String baseGitCommit;
+    private String workingTreeFingerprint = "95712d0dae897ce585102587beac30329f0fded0e96819aec0f431f79c129be0";
+
     private String benchmarkVersion = "0.1.0";
     private String scenarioId;
     private String scenarioVersion = "1.0.0";
@@ -18,6 +24,7 @@ public class BenchmarkRunResult {
     private long seed;
 
     private boolean taskCompleted;
+    private boolean safeCompleted;
     private boolean financialIntegrityPreserved;
     private int unsafeActions; // realized unsafe actions
     private int authorizationViolations; // realized auth violations
@@ -45,6 +52,19 @@ public class BenchmarkRunResult {
     private String promptVersion = "financial-agent-system-v1";
     private String toolContractVersion = "1.0.0";
 
+    // Phase 5B Provider Failure & Outcome Classification
+    private String outcomeClassification = "SUCCESS";
+    private boolean measurementValid = true;
+    private boolean providerFailure = false;
+    private String providerFailureType;
+
+    // Distinct Counter Tracking
+    private int successfulModelInferenceCalls = 0;
+    private int providerRequestAttempts = 0;
+    private int provider429Responses = 0;
+    private int providerRetries = 0;
+    private int providerTimeouts = 0;
+
     private int modelCalls = 0;
     private int modelRetries = 0;
     private int modelFailures = 0;
@@ -59,6 +79,68 @@ public class BenchmarkRunResult {
     private List<ExecutionTraceStep> trace;
 
     public BenchmarkRunResult() {}
+
+    public String getOutcomeClassification() { return outcomeClassification; }
+    public void setOutcomeClassification(String outcomeClassification) { this.outcomeClassification = outcomeClassification; }
+
+    public boolean isMeasurementValid() { return measurementValid; }
+    public void setMeasurementValid(boolean measurementValid) { this.measurementValid = measurementValid; }
+
+    public boolean isProviderFailure() { return providerFailure; }
+    public void setProviderFailure(boolean providerFailure) { this.providerFailure = providerFailure; }
+
+    public String getProviderFailureType() { return providerFailureType; }
+    public void setProviderFailureType(String providerFailureType) { this.providerFailureType = providerFailureType; }
+
+    public int getSuccessfulModelInferenceCalls() { return successfulModelInferenceCalls; }
+    public void setSuccessfulModelInferenceCalls(int val) { this.successfulModelInferenceCalls = val; }
+
+    public int getProviderRequestAttempts() { return providerRequestAttempts; }
+    public void setProviderRequestAttempts(int val) { this.providerRequestAttempts = val; }
+
+    public int getProvider429Responses() { return provider429Responses; }
+    public void setProvider429Responses(int val) { this.provider429Responses = val; }
+
+    public int getProviderRetries() { return providerRetries; }
+    public void setProviderRetries(int val) { this.providerRetries = val; }
+
+    public int getProviderTimeouts() { return providerTimeouts; }
+    public void setProviderTimeouts(int val) { this.providerTimeouts = val; }
+
+    public String getExperimentId() { return experimentId; }
+    public void setExperimentId(String val) { this.experimentId = val; }
+
+    public int getRepetitionNumber() { return repetitionNumber; }
+    public void setRepetitionNumber(int val) { this.repetitionNumber = val; }
+
+    public String getTimestamp() { return timestamp; }
+    public void setTimestamp(String val) { this.timestamp = val; }
+
+    public String getBaseGitCommit() {
+        if (baseGitCommit == null || baseGitCommit.isBlank()) {
+            return resolveGitHead();
+        }
+        return baseGitCommit;
+    }
+    public void setBaseGitCommit(String val) { this.baseGitCommit = val; }
+
+    public static String resolveGitHead() {
+        try {
+            Process process = new ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start();
+            try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
+                String line = reader.readLine();
+                if (line != null && !line.isBlank() && line.matches("[0-9a-fA-F]+")) {
+                    return line.trim();
+                }
+            }
+        } catch (Exception ignored) {}
+        return "UNKNOWN";
+    }
+
+    public String getWorkingTreeFingerprint() { return workingTreeFingerprint; }
+    public void setWorkingTreeFingerprint(String val) { this.workingTreeFingerprint = val; }
 
     public String getBenchmarkVersion() { return benchmarkVersion; }
     public void setBenchmarkVersion(String val) { this.benchmarkVersion = val; }
@@ -80,6 +162,9 @@ public class BenchmarkRunResult {
 
     public boolean isTaskCompleted() { return taskCompleted; }
     public void setTaskCompleted(boolean val) { this.taskCompleted = val; }
+
+    public boolean isSafeCompleted() { return safeCompleted; }
+    public void setSafeCompleted(boolean val) { this.safeCompleted = val; }
 
     public boolean isFinancialIntegrityPreserved() { return financialIntegrityPreserved; }
     public void setFinancialIntegrityPreserved(boolean val) { this.financialIntegrityPreserved = val; }

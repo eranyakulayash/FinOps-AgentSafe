@@ -32,6 +32,17 @@ public class LLMBenchmarkAgent implements Agent {
     private long outputTokens = 0L;
     private long totalTokens = 0L;
 
+    // Distinct Counter Tracking
+    private int successfulModelInferenceCalls = 0;
+    private int providerRequestAttempts = 0;
+    private int provider429Responses = 0;
+    private int providerRetries = 0;
+    private int providerTimeouts = 0;
+
+    // Circuit Breaker Tracking
+    private int consecutiveExhausted429Decisions = 0;
+    private boolean lastDecisionExhausted429 = false;
+
     public LLMBenchmarkAgent(ModelAdapterRegistry adapterRegistry,
                              AgentToolRegistry toolRegistry,
                              AgentToolExecutor toolExecutor,
@@ -53,14 +64,38 @@ public class LLMBenchmarkAgent implements Agent {
         this.inputTokens = 0L;
         this.outputTokens = 0L;
         this.totalTokens = 0L;
+
+        this.successfulModelInferenceCalls = 0;
+        this.providerRequestAttempts = 0;
+        this.provider429Responses = 0;
+        this.providerRetries = 0;
+        this.providerTimeouts = 0;
+
+        this.consecutiveExhausted429Decisions = 0;
+        this.lastDecisionExhausted429 = false;
     }
 
-    public int getModelCalls() { return modelCalls; }
-    public int getModelRetries() { return modelRetries; }
+    public void resetCircuitBreaker() {
+        this.consecutiveExhausted429Decisions = 0;
+        this.lastDecisionExhausted429 = false;
+    }
+
+    public int getModelCalls() { return providerRequestAttempts > 0 ? providerRequestAttempts : modelCalls; }
+    public int getModelRetries() { return providerRetries > 0 ? providerRetries : modelRetries; }
     public int getModelFailures() { return modelFailures; }
     public long getModelLatencyMs() { return modelLatencyMs; }
+
+    public int getSuccessfulModelInferenceCalls() { return successfulModelInferenceCalls; }
+    public int getProviderRequestAttempts() { return providerRequestAttempts; }
+    public int getProvider429Responses() { return provider429Responses; }
+    public int getProviderRetries() { return providerRetries; }
+    public int getProviderTimeouts() { return providerTimeouts; }
+
+    public int getConsecutiveExhausted429Decisions() { return consecutiveExhausted429Decisions; }
+    public boolean isLastDecisionExhausted429() { return lastDecisionExhausted429; }
+
     public ModelUsage getCumulativeUsage() {
-        return new ModelUsage(inputTokens, outputTokens, totalTokens, 0L, modelCalls, modelRetries, modelLatencyMs, null);
+        return new ModelUsage(inputTokens, outputTokens, totalTokens, 0L, getModelCalls(), getModelRetries(), modelLatencyMs, null);
     }
 
     @Override
@@ -129,13 +164,44 @@ public class LLMBenchmarkAgent implements Agent {
             ctx.getStepNumber()
         );
 
-        // 3. Call ModelAdapter with retry logic for retryable failures
+        // 3. Call ModelAdapter with bounded retry logic (initial attempt 0 + up to maxRetries attempts)
         int maxRetries = modelConfiguration.getMaximumModelRetries() != null ? modelConfiguration.getMaximumModelRetries() : 3;
         ModelResponse response = null;
+        boolean allAttemptsWere429 = true;
+
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            providerRequestAttempts++;
             modelCalls++;
-            if (attempt > 0) modelRetries++;
+            if (attempt > 0) {
+                providerRetries++;
+                modelRetries++;
+                boolean is429 = response != null && response.getError() != null && response.getError().getMessage() != null && response.getError().getMessage().contains("429");
+                long backoff = is429 ? 60000L : 15000L * attempt;
+                try { Thread.sleep(backoff); } catch (InterruptedException ignored) {}
+            } else {
+                try { Thread.sleep(6000); } catch (InterruptedException ignored) {}
+            }
+
             response = adapter.predict(request);
+
+            if (response != null && response.getError() != null) {
+                String msg = response.getError().getMessage();
+                if (msg != null) {
+                    if (msg.contains("429") || msg.toLowerCase().contains("rate limit")) {
+                        provider429Responses++;
+                    } else {
+                        allAttemptsWere429 = false;
+                    }
+                    if (msg.toLowerCase().contains("timeout")) {
+                        providerTimeouts++;
+                    }
+                } else {
+                    allAttemptsWere429 = false;
+                }
+            } else if (response != null && response.isSuccess()) {
+                allAttemptsWere429 = false;
+            }
+
             if (response != null && response.getUsage() != null) {
                 ModelUsage u = response.getUsage();
                 if (u.getInputTokens() != null) inputTokens += u.getInputTokens();
@@ -143,21 +209,58 @@ public class LLMBenchmarkAgent implements Agent {
                 if (u.getTotalTokens() != null) totalTokens += u.getTotalTokens();
                 modelLatencyMs += u.getLatencyMs();
             }
-            if (response != null && response.isSuccess()) break;
-            if (response != null && response.getError() != null && !response.getError().isRetryable()) {
-                modelFailures++;
+
+            if (response != null && response.isSuccess()) {
+                successfulModelInferenceCalls++;
+                consecutiveExhausted429Decisions = 0;
+                lastDecisionExhausted429 = false;
                 break;
             }
-            if (attempt == maxRetries) modelFailures++;
+
+            if (response != null && response.getError() != null) {
+                System.out.println("   [GEMINI API RETRY " + attempt + "/" + maxRetries + "] Error: " + response.getError().getMessage());
+            }
+
+            if (response != null && response.getError() != null && !response.getError().isRetryable()) {
+                modelFailures++;
+                allAttemptsWere429 = false;
+                break;
+            }
+            if (attempt == maxRetries) {
+                modelFailures++;
+            }
         }
 
         if (response == null || !response.isSuccess()) {
             ModelError err = response != null ? response.getError() : null;
             String errDetail = err != null ? err.getMessage() : "Unknown model prediction error";
+            String failureType = "INFRASTRUCTURE_FAILURE";
+
+            if (errDetail != null) {
+                String lowerMsg = errDetail.toLowerCase();
+                if (errDetail.contains("429") || lowerMsg.contains("rate limit")) {
+                    failureType = "PROVIDER_RATE_LIMIT";
+                } else if (lowerMsg.contains("timeout")) {
+                    failureType = "PROVIDER_TIMEOUT";
+                } else if (lowerMsg.contains("auth") || errDetail.contains("401") || errDetail.contains("403")) {
+                    failureType = "PROVIDER_AUTH_ERROR";
+                } else if (lowerMsg.contains("malformed") || lowerMsg.contains("parse")) {
+                    failureType = "PROVIDER_MALFORMED_RESPONSE";
+                }
+            }
+
+            if ("PROVIDER_RATE_LIMIT".equals(failureType) && allAttemptsWere429) {
+                consecutiveExhausted429Decisions++;
+                lastDecisionExhausted429 = true;
+            } else {
+                consecutiveExhausted429Decisions = 0;
+                lastDecisionExhausted429 = false;
+            }
+
             return AgentToolResult.failure(
                 baseContextReq,
                 AgentToolResult.Status.FAILED,
-                "MODEL_ERROR: " + errDetail,
+                "PROVIDER_ERROR: " + failureType + ": " + errDetail,
                 null
             );
         }

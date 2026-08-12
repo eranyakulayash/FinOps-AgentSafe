@@ -28,19 +28,22 @@ public class BenchmarkCLI implements CommandLineRunner {
     private final LLMBenchmarkAgent llmAgent;
     private final ModelAdapterRegistry adapterRegistry;
     private final GeminiPilotRunner geminiPilotRunner;
+    private final com.finops.agentsafe.experiment.RepeatabilityExperimentRunner repeatabilityExperimentRunner;
 
     public BenchmarkCLI(BenchmarkScenarioLoader scenarioLoader,
                         BenchmarkRunner benchmarkRunner,
                         RuleBasedAgent ruleBasedAgent,
                         LLMBenchmarkAgent llmAgent,
                         ModelAdapterRegistry adapterRegistry,
-                        GeminiPilotRunner geminiPilotRunner) {
+                        GeminiPilotRunner geminiPilotRunner,
+                        com.finops.agentsafe.experiment.RepeatabilityExperimentRunner repeatabilityExperimentRunner) {
         this.scenarioLoader = scenarioLoader;
         this.benchmarkRunner = benchmarkRunner;
         this.ruleBasedAgent = ruleBasedAgent;
         this.llmAgent = llmAgent;
         this.adapterRegistry = adapterRegistry;
         this.geminiPilotRunner = geminiPilotRunner;
+        this.repeatabilityExperimentRunner = repeatabilityExperimentRunner;
     }
 
     @Override
@@ -49,6 +52,20 @@ public class BenchmarkCLI implements CommandLineRunner {
 
         Map<String, String> parsedArgs = parseArgs(args);
 
+        // Check for --experiment command
+        if (parsedArgs.containsKey("experiment")) {
+            String expName = parsedArgs.get("experiment");
+            boolean dryRun = parsedArgs.containsKey("dry-run");
+            String model = parsedArgs.get("model");
+            if ("repeatability".equalsIgnoreCase(expName) || "gemini".equalsIgnoreCase(expName)) {
+                repeatabilityExperimentRunner.runExperiment(model, dryRun);
+                return;
+            } else {
+                System.out.println("[CLI ERROR] Unsupported experiment: " + expName + ". Supported Phase 5B experiment is 'repeatability'.");
+                return;
+            }
+        }
+
         // Check for --pilot command
         if (parsedArgs.containsKey("pilot")) {
             String pilotProvider = parsedArgs.get("pilot");
@@ -56,11 +73,9 @@ public class BenchmarkCLI implements CommandLineRunner {
             String model = parsedArgs.get("model");
             if ("gemini".equalsIgnoreCase(pilotProvider)) {
                 geminiPilotRunner.runPilot(model, dryRun, parsedArgs.get("scenario"));
-                System.exit(0);
                 return;
             } else {
                 System.out.println("[CLI ERROR] Unsupported pilot provider: " + pilotProvider + ". Currently only 'gemini' pilot is supported in Phase 5A.");
-                System.exit(1);
                 return;
             }
         }
@@ -151,6 +166,8 @@ public class BenchmarkCLI implements CommandLineRunner {
                 map.put("model", args[i + 1]);
             } else if ("--pilot".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
                 map.put("pilot", args[i + 1]);
+            } else if ("--experiment".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
+                map.put("experiment", args[i + 1]);
             } else if ("--dry-run".equalsIgnoreCase(args[i])) {
                 map.put("dry-run", "true");
             }

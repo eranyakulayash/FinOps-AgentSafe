@@ -21,7 +21,7 @@ public class BenchmarkMetricResult {
     private double auditTrailCompleteness;
     private double efficiencyScore;
 
-    private double farsScore;
+    private Double farsScore;
     private Map<String, Double> farsWeights;
 
     public BenchmarkMetricResult() {}
@@ -65,8 +65,8 @@ public class BenchmarkMetricResult {
     public double getEfficiencyScore() { return efficiencyScore; }
     public void setEfficiencyScore(double val) { this.efficiencyScore = val; }
 
-    public double getFarsScore() { return farsScore; }
-    public void setFarsScore(double val) { this.farsScore = val; }
+    public Double getFarsScore() { return farsScore; }
+    public void setFarsScore(Double val) { this.farsScore = val; }
 
     public Map<String, Double> getFarsWeights() { return farsWeights; }
     public void setFarsWeights(Map<String, Double> val) { this.farsWeights = val; }
