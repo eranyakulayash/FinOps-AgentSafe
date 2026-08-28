@@ -4,6 +4,7 @@ import com.finops.agentsafe.model.mock.MockModelAdapter;
 import com.finops.agentsafe.model.provider.AnthropicModelAdapter;
 import com.finops.agentsafe.model.provider.GeminiModelAdapter;
 import com.finops.agentsafe.model.provider.OpenAIModelAdapter;
+import com.finops.agentsafe.model.provider.GroqModelAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,8 @@ class ModelAdapterRegistryTest {
             new MockModelAdapter(),
             new GeminiModelAdapter(""),
             new OpenAIModelAdapter(""),
-            new AnthropicModelAdapter("")
+            new AnthropicModelAdapter(""),
+            new GroqModelAdapter("")
         ));
     }
 
@@ -33,11 +35,13 @@ class ModelAdapterRegistryTest {
         assertTrue(registry.hasAdapter("gemini"));
         assertTrue(registry.hasAdapter("openai"));
         assertTrue(registry.hasAdapter("anthropic"));
+        assertTrue(registry.hasAdapter("groq"));
 
         assertNotNull(registry.getAdapter("MOCK").orElse(null));
         assertNotNull(registry.getAdapter("Gemini").orElse(null));
         assertNotNull(registry.getAdapter("OPENAI").orElse(null));
         assertNotNull(registry.getAdapter("Anthropic").orElse(null));
+        assertNotNull(registry.getAdapter("GROQ").orElse(null));
     }
 
     @Test
@@ -46,8 +50,9 @@ class ModelAdapterRegistryTest {
         assertFalse(registry.getAdapter("gemini").orElseThrow().isConfigured());
         assertFalse(registry.getAdapter("openai").orElseThrow().isConfigured());
         assertFalse(registry.getAdapter("anthropic").orElseThrow().isConfigured());
+        assertFalse(registry.getAdapter("groq").orElseThrow().isConfigured());
 
-        ModelResponse resp = registry.getAdapter("gemini").orElseThrow().predict(new ModelRequest());
+        ModelResponse resp = registry.getAdapter("groq").orElseThrow().predict(new ModelRequest());
         assertFalse(resp.isSuccess());
         assertEquals(ModelErrorKind.PROVIDER_NOT_CONFIGURED, resp.getError().getKind());
     }

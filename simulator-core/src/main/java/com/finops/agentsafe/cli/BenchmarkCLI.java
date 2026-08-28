@@ -30,13 +30,16 @@ public class BenchmarkCLI implements CommandLineRunner {
     private final GeminiPilotRunner geminiPilotRunner;
     private final com.finops.agentsafe.experiment.RepeatabilityExperimentRunner repeatabilityExperimentRunner;
 
+    private final com.finops.agentsafe.pilot.GroqPreflightRunner groqPreflightRunner;
+
     public BenchmarkCLI(BenchmarkScenarioLoader scenarioLoader,
                         BenchmarkRunner benchmarkRunner,
                         RuleBasedAgent ruleBasedAgent,
                         LLMBenchmarkAgent llmAgent,
                         ModelAdapterRegistry adapterRegistry,
                         GeminiPilotRunner geminiPilotRunner,
-                        com.finops.agentsafe.experiment.RepeatabilityExperimentRunner repeatabilityExperimentRunner) {
+                        com.finops.agentsafe.experiment.RepeatabilityExperimentRunner repeatabilityExperimentRunner,
+                        com.finops.agentsafe.pilot.GroqPreflightRunner groqPreflightRunner) {
         this.scenarioLoader = scenarioLoader;
         this.benchmarkRunner = benchmarkRunner;
         this.ruleBasedAgent = ruleBasedAgent;
@@ -44,6 +47,7 @@ public class BenchmarkCLI implements CommandLineRunner {
         this.adapterRegistry = adapterRegistry;
         this.geminiPilotRunner = geminiPilotRunner;
         this.repeatabilityExperimentRunner = repeatabilityExperimentRunner;
+        this.groqPreflightRunner = groqPreflightRunner;
     }
 
     @Override
@@ -51,6 +55,15 @@ public class BenchmarkCLI implements CommandLineRunner {
         if (args == null || args.length == 0) return;
 
         Map<String, String> parsedArgs = parseArgs(args);
+
+        // Check for --smoke-test command
+        if (parsedArgs.containsKey("smoke-test") || parsedArgs.containsKey("smoke")) {
+            String smokeProvider = parsedArgs.getOrDefault("smoke-test", parsedArgs.get("smoke"));
+            if ("groq".equalsIgnoreCase(smokeProvider)) {
+                groqPreflightRunner.runSingleSmokeTest();
+                return;
+            }
+        }
 
         // Check for --experiment command
         if (parsedArgs.containsKey("experiment")) {
@@ -60,8 +73,15 @@ public class BenchmarkCLI implements CommandLineRunner {
             if ("repeatability".equalsIgnoreCase(expName) || "gemini".equalsIgnoreCase(expName)) {
                 repeatabilityExperimentRunner.runExperiment(model, dryRun);
                 return;
+            } else if ("groq".equalsIgnoreCase(expName)) {
+                if (dryRun) {
+                    groqPreflightRunner.runDryRun();
+                } else {
+                    groqPreflightRunner.runSingleSmokeTest();
+                }
+                return;
             } else {
-                System.out.println("[CLI ERROR] Unsupported experiment: " + expName + ". Supported Phase 5B experiment is 'repeatability'.");
+                System.out.println("[CLI ERROR] Unsupported experiment: " + expName);
                 return;
             }
         }
@@ -74,8 +94,15 @@ public class BenchmarkCLI implements CommandLineRunner {
             if ("gemini".equalsIgnoreCase(pilotProvider)) {
                 geminiPilotRunner.runPilot(model, dryRun, parsedArgs.get("scenario"));
                 return;
+            } else if ("groq".equalsIgnoreCase(pilotProvider)) {
+                if (dryRun) {
+                    groqPreflightRunner.runDryRun();
+                } else {
+                    groqPreflightRunner.runSingleSmokeTest();
+                }
+                return;
             } else {
-                System.out.println("[CLI ERROR] Unsupported pilot provider: " + pilotProvider + ". Currently only 'gemini' pilot is supported in Phase 5A.");
+                System.out.println("[CLI ERROR] Unsupported pilot provider: " + pilotProvider);
                 return;
             }
         }
@@ -168,6 +195,8 @@ public class BenchmarkCLI implements CommandLineRunner {
                 map.put("pilot", args[i + 1]);
             } else if ("--experiment".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
                 map.put("experiment", args[i + 1]);
+            } else if (("--smoke-test".equalsIgnoreCase(args[i]) || "--smoke".equalsIgnoreCase(args[i])) && i + 1 < args.length) {
+                map.put("smoke-test", args[i + 1]);
             } else if ("--dry-run".equalsIgnoreCase(args[i])) {
                 map.put("dry-run", "true");
             }

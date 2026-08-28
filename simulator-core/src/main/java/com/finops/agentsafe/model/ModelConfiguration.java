@@ -43,6 +43,10 @@ public class ModelConfiguration {
         return new ModelConfiguration("anthropic", modelName != null ? modelName : "claude-3-5-sonnet-20241022", 0.0, 2048, 15000L, 3, 42L, "financial-agent-system-v1");
     }
 
+    public static ModelConfiguration groq(String modelName) {
+        return new ModelConfiguration("groq", modelName != null ? modelName : "openai/gpt-oss-120b", 0.0, 2048, 15000L, 3, 42L, "financial-agent-system-v1");
+    }
+
     public String getProvider() { return provider; }
     public void setProvider(String provider) { this.provider = provider; }
 

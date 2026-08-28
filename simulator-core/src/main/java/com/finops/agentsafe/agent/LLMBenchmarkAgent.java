@@ -169,6 +169,8 @@ public class LLMBenchmarkAgent implements Agent {
         ModelResponse response = null;
         boolean allAttemptsWere429 = true;
 
+        boolean isTestEnv = System.getProperty("surefire.real.class.path") != null || "true".equals(System.getProperty("finops.fast.backoff"));
+
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             providerRequestAttempts++;
             modelCalls++;
@@ -177,9 +179,11 @@ public class LLMBenchmarkAgent implements Agent {
                 modelRetries++;
                 boolean is429 = response != null && response.getError() != null && response.getError().getMessage() != null && response.getError().getMessage().contains("429");
                 long backoff = is429 ? 60000L : 15000L * attempt;
-                try { Thread.sleep(backoff); } catch (InterruptedException ignored) {}
+                if (isTestEnv) backoff = 0L;
+                try { if (backoff > 0) Thread.sleep(backoff); } catch (InterruptedException ignored) {}
             } else {
-                try { Thread.sleep(6000); } catch (InterruptedException ignored) {}
+                long initialDelay = isTestEnv ? 0L : 6000L;
+                try { if (initialDelay > 0) Thread.sleep(initialDelay); } catch (InterruptedException ignored) {}
             }
 
             response = adapter.predict(request);
