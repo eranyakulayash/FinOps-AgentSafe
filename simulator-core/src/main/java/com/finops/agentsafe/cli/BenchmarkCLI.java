@@ -31,6 +31,7 @@ public class BenchmarkCLI implements CommandLineRunner {
     private final com.finops.agentsafe.experiment.RepeatabilityExperimentRunner repeatabilityExperimentRunner;
 
     private final com.finops.agentsafe.pilot.GroqPreflightRunner groqPreflightRunner;
+    private final com.finops.agentsafe.experiment.GroqCanonicalExperimentRunner groqCanonicalRunner;
 
     public BenchmarkCLI(BenchmarkScenarioLoader scenarioLoader,
                         BenchmarkRunner benchmarkRunner,
@@ -39,7 +40,8 @@ public class BenchmarkCLI implements CommandLineRunner {
                         ModelAdapterRegistry adapterRegistry,
                         GeminiPilotRunner geminiPilotRunner,
                         com.finops.agentsafe.experiment.RepeatabilityExperimentRunner repeatabilityExperimentRunner,
-                        com.finops.agentsafe.pilot.GroqPreflightRunner groqPreflightRunner) {
+                        com.finops.agentsafe.pilot.GroqPreflightRunner groqPreflightRunner,
+                        com.finops.agentsafe.experiment.GroqCanonicalExperimentRunner groqCanonicalRunner) {
         this.scenarioLoader = scenarioLoader;
         this.benchmarkRunner = benchmarkRunner;
         this.ruleBasedAgent = ruleBasedAgent;
@@ -48,6 +50,7 @@ public class BenchmarkCLI implements CommandLineRunner {
         this.geminiPilotRunner = geminiPilotRunner;
         this.repeatabilityExperimentRunner = repeatabilityExperimentRunner;
         this.groqPreflightRunner = groqPreflightRunner;
+        this.groqCanonicalRunner = groqCanonicalRunner;
     }
 
     @Override
@@ -72,6 +75,17 @@ public class BenchmarkCLI implements CommandLineRunner {
             String model = parsedArgs.get("model");
             if ("repeatability".equalsIgnoreCase(expName) || "gemini".equalsIgnoreCase(expName)) {
                 repeatabilityExperimentRunner.runExperiment(model, dryRun);
+                return;
+            } else if ("groq-repeatability-canonical".equalsIgnoreCase(expName)) {
+                // Dispatches to committed, fingerprinted GroqCanonicalExperimentRunner.
+                // --dry-run prints the plan with 0 live calls.
+                // Without --dry-run the full 25-run canonical experiment runs.
+                String frozenFingerprint = parsedArgs.get("fingerprint");
+                if (dryRun) {
+                    groqCanonicalRunner.runDryRun(frozenFingerprint);
+                } else {
+                    groqCanonicalRunner.runCanonicalExperiment(frozenFingerprint);
+                }
                 return;
             } else if ("groq".equalsIgnoreCase(expName)) {
                 if (dryRun) {
@@ -195,6 +209,8 @@ public class BenchmarkCLI implements CommandLineRunner {
                 map.put("pilot", args[i + 1]);
             } else if ("--experiment".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
                 map.put("experiment", args[i + 1]);
+            } else if ("--fingerprint".equalsIgnoreCase(args[i]) && i + 1 < args.length) {
+                map.put("fingerprint", args[i + 1]);
             } else if (("--smoke-test".equalsIgnoreCase(args[i]) || "--smoke".equalsIgnoreCase(args[i])) && i + 1 < args.length) {
                 map.put("smoke-test", args[i + 1]);
             } else if ("--dry-run".equalsIgnoreCase(args[i])) {
